@@ -10,7 +10,10 @@ A floating Windows control surface. Rust handles system integration, and a Tauri
 - Built-in display brightness through WMI when supported
 - Battery percentage and a charging banner
 - Click-through outside the island, always on top
-- Click the pill to expand. Click empty space inside it to collapse. Quit is inside the expanded island.
+- Click the pill to expand. Click empty space inside it to collapse. The gear opens an in-island customisation dialog.
+- Ctrl+I toggles the island on the Windows desktop only. Close hides it while the process stays running. Exit app stops it completely; relaunch the executable afterward.
+- Appearance and feature settings persist locally: corner radius, width, top offset, motion speed, media/battery/charging and volume/brightness visibility.
+- Inter is bundled locally under the SIL Open Font License. No font network request is needed.
 
 ## Requirements
 
@@ -31,7 +34,7 @@ The manually triggered GitHub Actions workflow builds this portable executable o
 
 ## Verification and limits
 
-The Windows API core has passed a cross-target type check. A full build and on-Windows runtime testing are separate checks. A browser preview uses sample data and cannot verify Windows controls. Notifications, automatic startup, global shortcuts, multi-monitor configuration and a tray menu are not implemented in this build. There is no network API or analytics in the application code. Brightness queries use a hidden local PowerShell process.
+The Windows API core has passed a cross-target type check. A full build and on-Windows runtime testing are separate checks. A browser preview uses sample data and cannot verify Windows controls. Notifications, automatic startup, multi-monitor configuration and a tray menu are not implemented. Ctrl+I is registered only when a Windows desktop or taskbar window is foreground, then released when another app is foreground. A shortcut conflict is shown in the settings dialog rather than replaced with another chord. There is no network API or analytics in the application code. Brightness queries use a hidden local PowerShell process.
 
 ## UI preview
 

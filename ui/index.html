@@ -4,9 +4,10 @@
 <meta charset="utf-8">
 <title>Island</title>
 <style>
+  @font-face{font-family:Inter;src:url(fonts/inter-latin-variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:block}
   *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;user-select:none}
   html,body{width:100%;height:100%;overflow:hidden;background:transparent}
-  body{font-family:'Segoe UI Variable','Segoe UI',system-ui,sans-serif;color:#fff}
+  body{font-family:Inter,system-ui,sans-serif;color:#fff}
 
   #island{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#000;
     overflow:hidden;cursor:default;will-change:width,height,border-radius;
@@ -80,6 +81,26 @@
   .boltwrap{width:36px;height:36px;border-radius:50%;background:rgba(48,209,88,.16);display:flex;
     align-items:center;justify-content:center;flex:none}
   .charge .pct{margin-left:auto;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+
+  button,input{font:inherit}
+  .foot button,.gear{border:0;color:#bbb;background:#19191e;padding:6px 10px;border-radius:7px;cursor:pointer;font-size:11px}
+  .foot button:hover,.gear:hover{background:#2b2b33;color:white}
+  .gear{display:flex;align-items:center;justify-content:center;margin-left:8px;padding:5px}
+  .mini .gear{margin-left:0}
+  .settings{display:flex;flex-direction:column;align-items:stretch;padding:22px 24px;gap:13px}
+  .settings h2{font-size:18px;font-weight:600;letter-spacing:-.04em}
+  .settings .setting-top{display:flex;align-items:center;justify-content:space-between}
+  .settings .hint{font-size:11px;color:#92929e;line-height:1.5}
+  .setting-row{display:flex;align-items:center;justify-content:space-between;gap:18px;font-size:12px;min-height:24px}
+  .setting-row input[type=range]{width:180px;accent-color:#fff}
+  .setting-row input[type=checkbox]{width:16px;height:16px;accent-color:#fff;cursor:pointer}
+  .setting-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px}
+  .settings .setting-pair label{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#d5d5de;gap:10px}
+  .setting-row output{display:inline-block;min-width:40px;text-align:right;color:#92929e;font-size:11px}
+  .settings button{background:#24242b;color:#fff;border:0;border-radius:7px;padding:7px 12px;cursor:pointer;font-size:12px}
+  .settings .setting-footer{display:flex;gap:8px;align-items:center;margin-top:auto}
+  .settings .exit{margin-left:auto;color:#e5a0a0;background:#281a1d}
+.setting-pair input[type=checkbox]{appearance:none;border:1px solid #484850;border-radius:4px;background:#22222a;position:relative}.setting-pair input[type=checkbox]:checked{background:#dddde5;border-color:#dddde5}.setting-pair input[type=checkbox]:checked:after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #111;border-width:0 2px 2px 0;transform:rotate(45deg)}
 </style>
 </head>
 <body>

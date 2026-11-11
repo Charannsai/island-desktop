@@ -43,6 +43,35 @@ async function invoke(name, args) {
   return null;
 }
 
+const DEFAULTS = {music:true,battery:true,charge:true,volume:true,brightness:true,rounding:16,speed:100,offset:10,width:520};
+let prefs = {...DEFAULTS};
+try { prefs = {...DEFAULTS,...JSON.parse(localStorage.getItem('island.prefs')||'{}')}; } catch {}
+function savePrefs() { localStorage.setItem('island.prefs',JSON.stringify(prefs)); }
+const gear = '<button class="gear" data-settings aria-label="Settings" title="Settings"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m9 3-1 3-3 1 1 3-2 2 2 2-1 3 3 1 1 3h6l1-3 3-1-1-3 2-2-2-2 1-3-3-1-1-3z"/><circle cx="12" cy="12" r="3"/></svg></button>';
+let settingsReturn = 0;
+function openSettings() { settingsReturn = state === ST.SETTINGS ? settingsReturn : state; setState(ST.SETTINGS); }
+function settingsHtml() {
+ const toggles=[['music','Music activity'],['battery','Battery status'],['charge','Charging banner'],['volume','Volume slider'],['brightness','Brightness slider']];
+ const range=(key,label,min,max,unit)=>`<label class="setting-row"><span>${label}</span><span><input data-pref="${key}" type="range" min="${min}" max="${max}" value="${prefs[key]}" aria-label="${label}"><output data-value="${key}">${prefs[key]}${unit}</output></span></label>`;
+ return el(`<div class="view settings" role="dialog" aria-modal="true" aria-label="Island settings">
+ <div class="setting-top"><h2>Make it yours</h2><button data-done>Done</button></div>
+ <p class="hint">All controls live here. Changes are saved on this device.</p>
+ <div class="setting-pair">${toggles.map(([k,l])=>`<label>${l}<input data-pref="${k}" type="checkbox" ${prefs[k]?'checked':''}></label>`).join('')}</div>
+ <div class="divider"></div>
+ ${range('rounding','Corner radius',8,30,'px')}
+ ${range('width','Expanded width',440,640,'px')}
+ ${range('offset','Top position',4,70,'px')}
+ ${range('speed','Motion speed',50,150,'%')}
+ <div class="divider"></div>
+ <p class="hint">Ctrl+I shows or hides Island on the Windows desktop. It does not reserve the shortcut in other apps. Close keeps Island running. Exit stops it completely.</p>
+ <p class="hint" id="shortcutStatus">Checking desktop shortcut...</p>
+ <div class="setting-footer"><button data-reset>Reset</button><button data-hide>Close island</button><button class="exit" data-exit>Exit app</button></div>
+ </div>`);
+}
+function bindSettings() {
+ invoke('shortcut_status').then(v=>{const e=document.getElementById('shortcutStatus');if(e)e.textContent=v||'Desktop shortcut status will appear when Windows desktop is active.';});
+}
+
 /* ---------------- svg glyphs ---------------- */
 const I = {
   play: '<svg width="26" height="30" viewBox="0 0 26 32" fill="#fff"><path d="M4 2.6c0-1.8 2-2.9 3.5-1.9l16.5 12.4c1.5 1.1 1.5 3.4 0 4.5L7.5 30c-1.6 1-3.5-.1-3.5-1.9V2.6z"/></svg>',
@@ -79,29 +108,31 @@ const K_OUT = [150, 17], K_IN = [220, 26], K_FI = [200, 24], K_FO = [320, 36];
 
 /* ---------------- state ---------------- */
 const island = document.getElementById('island');
-const ST = { IDLE: 0, MIN: 1, MAX: 2, CHARGE: 3 };
+const ST = { IDLE: 0, MIN: 1, MAX: 2, CHARGE: 3, SETTINGS: 4 };
 let state = ST.IDLE;
 let layers = [];
 let S = null;                 // latest system state
 let chargeUntil = 0, prevCharging = false;
 
-const gw = new Spr(300), gh = new Spr(40), gr = new Spr(20);
+const gw = new Spr(300), gh = new Spr(40), gr = new Spr(Math.min(20,prefs.rounding));
 const fadeIn = new Spr(0), fadeOut = new Spr(1);
 fadeIn.k = K_FI[0]; fadeIn.c = K_FI[1]; fadeIn.t = 1;
 fadeOut.k = K_FO[0]; fadeOut.c = K_FO[1]; fadeOut.t = 0;
 
 function geo(s) {
-  switch (s) {
-    case ST.MIN: return [372, 56, 28];
-    case ST.MAX: return [520, 282, 42];
-    case ST.CHARGE: return [430, 92, 38];
-    default: return [300, 40, 20];
-  }
+ switch(s) {
+  case ST.SETTINGS:return [prefs.width,480,prefs.rounding];
+  case ST.MIN:return [372,56,Math.min(20,prefs.rounding)];
+  case ST.MAX:return [prefs.width,282,prefs.rounding];
+  case ST.CHARGE:return [430,92,prefs.rounding];
+  default:return [300,40,Math.min(20,prefs.rounding)];
+ }
 }
+function applyGeometry(){const [w,h,r]=geo(state);gw.to(w,...K_OUT);gh.to(h,...K_OUT);gr.to(r,...K_OUT);}
 
 function setState(ns) {
   if (ns === state) return;
-  for (const L of layers) if (L.dir === 'in') { L.dir = 'out'; }
+  for (const L of layers) if (L.dir === 'in') { L.dir = 'out'; L.root.style.pointerEvents='none'; L.root.querySelectorAll('[id]').forEach(n=>n.removeAttribute('id')); }
   const [w, h, r] = geo(ns);
   const grow = w * h >= gw.t * gh.t;
   const [k, c] = grow ? K_OUT : K_IN;
@@ -113,11 +144,12 @@ function setState(ns) {
   layers.push({ root, dir: 'in', born: clock() / 1000 });
   state = ns;
   if (ns === ST.MAX) setTimeout(bindMaxControls, 0);
+  if (ns === ST.SETTINGS) setTimeout(bindSettings, 0);
 }
 
 /* rebuild current view's DOM in place (content changed, geometry stays) */
 function refreshView() {
-  if (state === ST.CHARGE || dragging) return;
+  if (state === ST.CHARGE || state === ST.SETTINGS || dragging) return;
   for (const L of layers) L.root.remove();
   const root = buildView(state);
   island.appendChild(root);
@@ -141,19 +173,20 @@ function artHtml(size, rad) {
 }
 
 function buildView(s) {
+  if (s === ST.SETTINGS) return settingsHtml();
   if (s === ST.IDLE) {
-    const batt = S && S.battery_pct >= 0
+    const batt = prefs.battery && S && S.battery_pct >= 0
       ? `<div class="meta">${battSvg(S.battery_pct, S.charging)}<span>${S.battery_pct}%</span></div>` : '';
     const music = S && S.media
       ? `<div class="dot"></div><div class="mnote">${I.note}<span>${esc(S.media.title)}</span></div>` : '';
-    return el(`<div class="view idle"><span class="clock">${clockStr()}</span>${batt}${music}</div>`);
+    return el(`<div class="view idle"><span class="clock">${clockStr()}</span>${batt}${music}${gear}</div>`);
   }
   if (s === ST.MIN) {
     const m = S && S.media ? S.media : { title: 'Nothing playing', artist: '' };
     return el(`<div class="view mini">
       ${artHtml(30, 8)}
       <div class="titles" data-stag><span class="t1">${esc(m.title)}</span><span class="t2">${esc(m.artist)}</span></div>
-      <div class="spacer"></div><div class="wave" data-stag>${'<i></i>'.repeat(5)}</div></div>`);
+      <div class="spacer"></div><div class="wave" data-stag>${'<i></i>'.repeat(5)}</div>${gear}</div>`);
   }
   if (s === ST.CHARGE) {
     const pct = S && S.battery_pct >= 0 ? S.battery_pct : '';
@@ -166,7 +199,7 @@ function buildView(s) {
   const m = S && S.media ? S.media : null;
   const vol = S && S.volume >= 0 ? Math.round(S.volume * 100) : 0;
   const bri = S && S.brightness >= 0 ? S.brightness : -1;
-  const batt = S && S.battery_pct >= 0
+  const batt = prefs.battery && S && S.battery_pct >= 0
     ? `<div class="batt" data-stag>${battSvg(S.battery_pct, S.charging)}<span>${S.battery_pct}%${S.charging ? ' charging' : ''}</span></div>` : '';
   return el(`<div class="view max">
     <div class="mm-top" data-stag>
@@ -185,17 +218,17 @@ function buildView(s) {
     </div>
     <div class="divider" data-stag></div>
     <div class="sliders" data-stag>
-      <div class="srow"><span class="sic">${I.vol}</span>
+      ${prefs.volume ? `<div class="srow"><span class="sic">${I.vol}</span>
         <div class="strack" id="volT"><div class="sfill" id="volF" style="width:${vol}%"></div></div>
-        <span class="sval" id="volV">${vol}</span></div>
-      ${bri >= 0 ? `<div class="srow"><span class="sic">${I.sun}</span>
+        <span class="sval" id="volV">${vol}</span></div>` : ''}
+      ${prefs.brightness && bri >= 0 ? `<div class="srow"><span class="sic">${I.sun}</span>
         <div class="strack" id="briT"><div class="sfill" id="briF" style="width:${bri}%"></div></div>
         <span class="sval" id="briV">${bri}</span></div>` : ''}
     </div>
     <div class="foot" data-stag>
       <span class="brand">Island</span>
       ${batt}
-      <span class="quit" id="quit">Quit</span>
+      ${gear}<button style="margin-left:auto" data-hide>Close</button>
     </div>
   </div>`);
 }
@@ -209,7 +242,12 @@ island.addEventListener('click', e => {
   if (t.closest('#cPlay')) { invoke('media_cmd', { cmd: 'play' }).then(poll); return; }
   if (t.closest('#cNext')) { invoke('media_cmd', { cmd: 'next' }).then(() => setTimeout(poll, 250)); return; }
   if (t.closest('#cPrev')) { invoke('media_cmd', { cmd: 'prev' }).then(() => setTimeout(poll, 250)); return; }
-  if (t.closest('#quit')) { invoke('quit_app'); return; }
+  if(t.closest('[data-settings]')){openSettings();return;}
+  if(t.closest('[data-done]')){setState(settingsReturn);return;}
+  if(t.closest('[data-hide]')){invoke('hide_island');return;}
+  if(t.closest('[data-exit]')){invoke('quit_app');return;}
+  if(t.closest('[data-reset]')){prefs={...DEFAULTS};savePrefs(); const root=settingsHtml();island.replaceChildren(root);layers=[{root,dir:'in',born:clock()/1000-1}];bindSettings();applyGeometry();return;}
+  if(state===ST.SETTINGS)return;
   if (t.closest('#track')) {
     const r = t.closest('#track').getBoundingClientRect();
     const f = clamp01((e.clientX - r.left) / r.width);
@@ -269,8 +307,9 @@ async function poll() {
   render.polledAt = clock() / 1000;
   const titleChanged = lastTitle !== (S.media && S.media.title);
   lastTitle = S.media && S.media.title;
+  if (!prefs.music) S.media = null;
   // charging bloom
-  if (S.charging && !prevCharging && S.battery_pct >= 0 && S.battery_pct < 100) {
+  if (prefs.charge && state !== ST.SETTINGS && S.charging && !prevCharging && S.battery_pct >= 0 && S.battery_pct < 100) {
     chargeUntil = clock() / 1000 + 3;
     setState(ST.CHARGE);
   }
@@ -291,9 +330,10 @@ function render() {
   const now = clock() / 1000;
   if (state === ST.CHARGE && now > chargeUntil) setState(S && S.media ? ST.MIN : ST.IDLE);
 
-  const dt = Math.min(0.05, render.dt || 1 / 60);
+  const dt = Math.min(0.03, (render.dt || 1 / 60) * prefs.speed / 100);
   gw.step(dt); gh.step(dt); gr.step(dt); fadeIn.step(dt); fadeOut.step(dt);
 
+  island.style.top = prefs.offset + 'px';
   island.style.width = gw.x.toFixed(1) + 'px';
   island.style.height = gh.x.toFixed(1) + 'px';
   island.style.borderRadius = gr.x.toFixed(1) + 'px';
@@ -371,10 +411,10 @@ function render() {
   }
 
   // report island rect for click-through
-  const rect = `${Math.round(gw.x)}x${Math.round(gh.y || gh.x)}`;
+  const rect = `${Math.round(gw.x)}x${Math.round(gh.x)}x${prefs.offset}`;
   if (rect !== lastRect) {
     lastRect = rect;
-    const x = (window.innerWidth - gw.x) / 2, y = 10;
+    const x = (window.innerWidth - gw.x) / 2, y = prefs.offset;
     invoke('set_island_rect', { x, y, w: gw.x, h: gh.x });
   }
 }
@@ -434,3 +474,10 @@ if (CAPTURE) {
 if (!hasTauri && !CAPTURE) {
  const badge=document.createElement('div');badge.textContent='BROWSER PREVIEW / SAMPLE DATA';badge.style.cssText='position:absolute;bottom:20px;width:100%;text-align:center;color:#888;font-size:11px';document.body.appendChild(badge);
 }
+
+island.addEventListener('input', e=>{
+ const k=e.target.dataset.pref;if(!k)return;
+ prefs[k]=e.target.type==='checkbox'?e.target.checked:Number(e.target.value);
+ savePrefs();applyGeometry();
+ const o=island.querySelector(`[data-value="${k}"]`);if(o)o.textContent=prefs[k]+(k==='speed'?'%':'px');
+});

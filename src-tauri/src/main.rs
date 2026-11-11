@@ -325,6 +325,48 @@ fn start_cursor_watch(win: tauri::WebviewWindow) {
     });
 }
 
+/* Desktop-only Ctrl+I. Never reserve the chord while another app is foreground. */
+static SHORTCUT_STATUS: Mutex<String> = Mutex::new(String::new());
+fn start_desktop_shortcut(win: tauri::WebviewWindow) {
+    std::thread::spawn(move || {
+        use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetClassNameW, PeekMessageW, MSG, PM_REMOVE, WM_HOTKEY};
+        use windows::Win32::UI::Input::KeyboardAndMouse::{RegisterHotKey, UnregisterHotKey, MOD_CONTROL, MOD_NOREPEAT};
+        let mut registered = false;
+        loop {
+            unsafe {
+                let fg = GetForegroundWindow();
+                let mut cls = [0u16; 128];
+                let n = GetClassNameW(fg, &mut cls);
+                let name = String::from_utf16_lossy(&cls[..n.max(0) as usize]);
+                let desktop = name == "Progman" || name == "WorkerW" || name == "Shell_TrayWnd" || name == "Shell_SecondaryTrayWnd";
+                if desktop && !registered {
+                    match RegisterHotKey(None, 71, MOD_CONTROL | MOD_NOREPEAT, 0x49) {
+                        Ok(_) => { registered = true; if let Ok(mut s) = SHORTCUT_STATUS.lock() {*s = "Ready on the Windows desktop".into();} }
+                        Err(_) => { if let Ok(mut s) = SHORTCUT_STATUS.lock() {*s = "Ctrl+I is unavailable: another app may own it".into();} }
+                    }
+                } else if !desktop && registered {
+                    let _ = UnregisterHotKey(None, 71); registered = false;
+                    if let Ok(mut s) = SHORTCUT_STATUS.lock() {*s = "Desktop only: switch to the Windows desktop to use Ctrl+I".into();}
+                }
+                let mut msg = MSG::default();
+                while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                    if msg.message == WM_HOTKEY && msg.wParam.0 == 71 {
+                        if win.is_visible().unwrap_or(false) {let _ = win.hide();} else {let _ = win.show();}
+                    }
+                }
+            }
+            std::thread::sleep(Duration::from_millis(40));
+        }
+    });
+}
+
+#[tauri::command]
+fn shortcut_status() -> String {
+    SHORTCUT_STATUS.lock().map(|s| s.clone()).unwrap_or_default()
+}
+#[tauri::command]
+fn hide_island(win: tauri::WebviewWindow) { let _ = win.hide(); }
+
 /* ---------------- tauri commands ---------------- */
 #[tauri::command]
 async fn get_state() -> State {
@@ -378,6 +420,18 @@ fn quit_app(app: tauri::AppHandle) {
 }
 
 fn main() {
+    if std::env::args().any(|a| a == "--shortcut-probe") {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{RegisterHotKey, UnregisterHotKey, MOD_CONTROL, MOD_NOREPEAT};
+        let result = unsafe {
+            match RegisterHotKey(None, 71, MOD_CONTROL | MOD_NOREPEAT, 0x49) {
+                Ok(_) => {let _ = UnregisterHotKey(None,71); "Ctrl+I registration succeeded".to_string()}
+                Err(e) => format!("Ctrl+I registration failed: {e}"),
+            }
+        };
+        let _ = std::fs::write("shortcut-probe.txt", result);
+        return;
+    }
+
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             get_state,
@@ -386,7 +440,9 @@ fn main() {
             volume_set,
             brightness_set,
             set_island_rect,
-            quit_app
+            quit_app,
+            hide_island,
+            shortcut_status
         ])
         .setup(|app| {
             use tauri::Manager;
@@ -399,6 +455,7 @@ fn main() {
             }
             let _ = win.set_ignore_cursor_events(true);
             start_cursor_watch(win.clone());
+            start_desktop_shortcut(win.clone());
             Ok(())
         })
         .run(tauri::generate_context!())
