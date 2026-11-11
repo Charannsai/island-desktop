@@ -14,10 +14,14 @@ jobs:
           name: Island-Windows-x64
           path: app
           github-token: ${{ github.token }}
-          run-id: 42987187355
+          run-id: 42988999478
       - name: Launch built executable
         shell: pwsh
         run: |
+          Start-Process -FilePath "$pwd/app/island.exe" -ArgumentList '--shortcut-probe' -Wait
+          $probe = Get-Content shortcut-probe.txt
+          Write-Output $probe
+          if ($probe -notmatch 'registration succeeded') {throw 'Shortcut registration failed'}
           $p = Start-Process -FilePath "$pwd/app/island.exe" -PassThru
           Start-Sleep -Seconds 10
           if ($p.HasExited) { throw "Island exited during startup, exit code $($p.ExitCode)" }
