@@ -1,0 +1,44 @@
+[package]
+name = "island"
+version = "1.0.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+windows-future = "0.2"
+windows = { version = "0.61", features = [
+    "Foundation",
+    "Foundation_Collections",
+    "Media_Control",
+    "Media_Playback",
+    "Devices_Power",
+    "System_Power",
+    "Win32_Media_Audio_Endpoints",
+    "Storage_Streams",
+    "Win32_Media_Audio",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+opt-level = 1
+lto = false
+codegen-units = 16
+panic = "abort"
+
+[profile.release.package.windows]
+opt-level = 0
+codegen-units = 256
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

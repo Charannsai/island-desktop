@@ -1,0 +1,23 @@
+name: Windows portable build
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Build portable Island
+        working-directory: src-tauri
+        run: cargo build --release --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Island-Windows-x64
+          path: src-tauri/target/release/island.exe
+          retention-days: 7
