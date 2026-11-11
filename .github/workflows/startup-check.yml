@@ -1,6 +1,11 @@
 name: Windows startup smoke check
 on:
   workflow_dispatch:
+    inputs:
+      build_run:
+        description: Successful portable-build run to check
+        required: true
+        default: '42989811891'
 jobs:
   startup:
     runs-on: windows-latest
@@ -14,7 +19,7 @@ jobs:
           name: Island-Windows-x64
           path: app
           github-token: ${{ github.token }}
-          run-id: 42988999478
+          run-id: ${{ inputs.build_run }}
       - name: Launch built executable
         shell: pwsh
         run: |
